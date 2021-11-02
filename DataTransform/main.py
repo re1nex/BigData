@@ -19,15 +19,16 @@ def unused(some):
 
 
 class TaskTransformer:
-    def __init__(self, task_name: str, for_movies_only: bool):
+    def __init__(self, task_name: str, for_movies_only: bool, title_key: str = 'title'):
         self._task_name = task_name
         self.__titles = set()
-        self.__only_movies = for_movies_only
+        self.__key = title_key
+        self.__movies = for_movies_only
 
     def consume(self, json_dict, meta):
-        if (not self.__only_movies or json_dict['media_type'] == 'MOVIE') and json_dict['title'] not in self.__titles:
+        if (not self.__movies or json_dict['media_type'] == 'MOVIE') and json_dict[self.__key] not in self.__titles:
             self._consume_impl(json_dict, meta)
-            self.__titles.add(json_dict['title'])
+            self.__titles.add(json_dict[self.__key])
 
     def flush(self, target_dir):
         pass
@@ -43,6 +44,7 @@ class Task1(TaskTransformer):
     """
     Reviews analysis and correlation with rating
     """
+
     def __init__(self):
         super().__init__('task_1', True)
         self.__data = {
@@ -64,6 +66,7 @@ class Task2(TaskTransformer):
     """
     Predict popularity having actors, director and budget
     """
+
     def __init__(self):
         super().__init__('task_2', True)
         self.__data = {
@@ -92,6 +95,7 @@ class Task3(TaskTransformer):
     """
     Find the most popular genre for each region
     """
+
     def __init__(self):
         super().__init__('task_3', False)
         self.__data = {
@@ -117,8 +121,9 @@ class Task4(TaskTransformer):
     """
     TV show season count dependency on crew, cast and some other features
     """
+
     def __init__(self):
-        super().__init__('task_4', False)
+        super().__init__('task_4', False, 'name')
         self.__data = {
             'title': [],
             'seasons': [],
@@ -149,6 +154,7 @@ class Task5(TaskTransformer):
     """
     Popularity dependency on production company name & country
     """
+
     def __init__(self):
         super().__init__('task_5', True)
         self.__data = {
@@ -228,7 +234,7 @@ class RegionTasksTransformer(TaskGroupTransformer):
     def _extract_meta(self, file):
         unused(self)
         extension = len('.txt')
-        return file[:-extension]  # file name without extension == region
+        return {'region': file[:-extension]}  # file name without extension == region
 
 
 class ShowTasksTransformer(TaskGroupTransformer):
@@ -288,5 +294,3 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action='store_true', help='Write status in stdout')
     args = parser.parse_args()
     aloha(args)
-
-# TODO: test all
