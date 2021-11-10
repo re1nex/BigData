@@ -20,15 +20,18 @@ def unused(some):
 
 class TaskTransformer:
     def __init__(self, task_name: str, for_movies_only: bool, title_key: str = 'title'):
+        # pass None to title_key to avoid filtering
         self._task_name = task_name
         self.__titles = set()
         self.__key = title_key
         self.__movies = for_movies_only
+        self.__title_check_func = lambda json_dict: title_key is None or (json_dict[self.__key] not in self.__titles)
 
     def consume(self, json_dict, meta):
-        if (not self.__movies or json_dict['media_type'] == 'MOVIE') and json_dict[self.__key] not in self.__titles:
+        if (not self.__movies or json_dict['media_type'] == 'MOVIE') and self.__title_check_func(json_dict):
             self._consume_impl(json_dict, meta)
-            self.__titles.add(json_dict[self.__key])
+            if self.__key is not None:
+                self.__titles.add(json_dict[self.__key])
 
     def flush(self, target_dir):
         pass
@@ -97,7 +100,7 @@ class Task3(TaskTransformer):
     """
 
     def __init__(self):
-        super().__init__('task_3', False)
+        super().__init__('task_3', False, title_key=None)
         self.__data = {
             'region': [],
             'popularity': [],
@@ -277,7 +280,7 @@ def run_task_transformers(cmd_args):
     task_groups = [
         MovieTasksTransformer(log),
         RegionTasksTransformer(log),
-        ShowTasksTransformer(log)
+        ShowTasksTransformer(log),
     ]
     for task_group in task_groups:
         process_task_group(task_group, cmd_args.src_dir, cmd_args.dest_dir)
