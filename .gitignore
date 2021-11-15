@@ -133,6 +133,6 @@ dmypy.json
 .ipynb_checkpoints
 
 # Data
-.csv
+*.csv
 raw_data
 transformed_data

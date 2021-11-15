@@ -29,15 +29,20 @@ class TaskTransformer:
 
     def consume(self, json_dict, meta):
         if (not self.__movies or json_dict['media_type'] == 'MOVIE') and self.__title_check_func(json_dict):
-            self._consume_impl(json_dict, meta)
-            if self.__key is not None:
-                self.__titles.add(json_dict[self.__key])
+            if self._consume_predicate(json_dict):
+                self._consume_impl(json_dict, meta)
+                if self.__key is not None:
+                    self.__titles.add(json_dict[self.__key])
 
     def flush(self, target_dir):
         pass
 
     def which_task(self):
         return self._task_name
+
+    def _consume_predicate(self, json_dict):
+        unused(self)
+        return True
 
     def _consume_impl(self, json_dict, meta):
         pass
@@ -74,6 +79,7 @@ class Task2(TaskTransformer):
         super().__init__('task_2', True)
         self.__data = {
             'popularity': [],
+            'rating': [],
             'directors': [],
             'actors': [],
             'budget': [],
@@ -85,6 +91,7 @@ class Task2(TaskTransformer):
     def _consume_impl(self, json_dict, meta):
         self.__data['film_title'].append(json_dict['title'])
         self.__data['popularity'].append(json_dict['popularity'])
+        self.__data['rating'].append(json_dict['vote_average'])
         self.__data['actors'].append([actor['name'] for actor in json_dict['cast'] if actor['order'] < self.__prune])
         self.__data['directors'].append([worker['name'] for worker in json_dict['crew'] if worker['job'] == 'Director'])
         self.__data['budget'].append(json_dict['budget'])
@@ -115,6 +122,38 @@ class Task3(TaskTransformer):
         self.__data['popularity'].append(json_dict['popularity'])
         self.__data['media_type'].append(json_dict['media_type'])
         self.__data['genres'].append([genre for genre in json_dict['genre_ids']])
+
+    def flush(self, target_dir):
+        pd.DataFrame(self.__data).to_csv(os.path.join(target_dir, self._task_name + '.csv'), encoding='utf-8')
+
+
+class Task3Modified(TaskTransformer):
+    """
+    Genres popularity from year to year
+    """
+
+    def __init__(self):
+        super().__init__('task_3', True)
+        self.__data = {
+            'year': [],
+            'genres': [],
+            'popularity': [],
+            'rating': [],
+            'film_title': [],
+        }
+
+    def _consume_impl(self, json_dict, meta):
+        if json_dict['genres'] is not None:
+            self.__data['genres'].append([genre['name'] for genre in json_dict['genres']])
+        else:
+            self.__data['genres'].append([])
+        self.__data['rating'].append(json_dict['vote_average'])
+        self.__data['popularity'].append(json_dict['popularity'])
+        self.__data['film_title'].append(json_dict['title'])
+        self.__data['year'].append(meta['year'])
+
+    def _consume_predicate(self, json_dict):
+        return 'genres' in json_dict and json_dict['genres'] is not None and len(json_dict['genres']) > 0
 
     def flush(self, target_dir):
         pd.DataFrame(self.__data).to_csv(os.path.join(target_dir, self._task_name + '.csv'), encoding='utf-8')
@@ -223,7 +262,16 @@ class MovieTasksTransformer(TaskGroupTransformer):
 
     def _get_transformers_list(self):
         unused(self)
-        return [Task1(), Task2(), Task5()]
+        return [Task1(), Task2(), Task3Modified(), Task5()]
+
+    def _extract_meta(self, file):
+        # need to extract year from file name
+        # file name example: output1999.txt
+        unused(self)
+        extension_len = len('.txt')
+        year_len = len('2000')
+        year = file[-(extension_len + year_len):-extension_len]
+        return {'year': year}
 
 
 class RegionTasksTransformer(TaskGroupTransformer):
@@ -279,7 +327,7 @@ def run_task_transformers(cmd_args):
     log = Reporter(cmd_args.verbose)
     task_groups = [
         MovieTasksTransformer(log),
-        RegionTasksTransformer(log),
+        # RegionTasksTransformer(log),  # task has been changed and moved to MovieTasksTransformer
         ShowTasksTransformer(log),
     ]
     for task_group in task_groups:
